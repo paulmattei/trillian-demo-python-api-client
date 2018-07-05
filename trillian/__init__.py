@@ -1,1 +1,1 @@
-from trillian_log import TrillianLog
+from .trillian_log import TrillianLog
