@@ -1,5 +1,5 @@
 import base64
-import datetime
+import json
 import io
 import logging
 import requests
@@ -124,11 +124,22 @@ class LogRootDecoder():
         return base64.b64encode(binary).decode('ascii')
 
 
+class LogEntry():
+    def __init__(self, raw_data):
+        if not isinstance(raw_data, bytes):
+            raise ValueError('raw_data: expected bytes, got {}'.format(
+                type(raw_data)
+            ))
+        self.__raw_data = raw_data
+
+    def json(self):
+        return json.loads(self.__raw_data.decode('utf-8'))
+
+
 class TrillianLog():
     """
     Stub!
     """
-    LogEntry = namedtuple('LogEntry', 'datetime,raw_data')
 
     def __init__(self, base_url, public_key):
         if not base_url:
@@ -158,16 +169,10 @@ class TrillianLog():
             return None
 
         else:
-            # TODO: get the tree_size-1'th log entry and return it as a
-            # LogEntry
+            latest_entry = self.get_leaves_by_range(tree_size-1, 1)[0]
 
-            fake_dt = (
-                datetime.datetime.now(utcdatetime.UTC) - datetime.timedelta(hours=16)
-            ).replace(minute=0, second=0, microsecond=0)
-
-            return self.LogEntry(
-                datetime=utcdatetime.utcdatetime.from_datetime(fake_dt),
-                raw_data=''.encode('utf-8')  # TODO
+            return LogEntry(
+                raw_data=base64.b64decode(latest_entry['leaf_value'])
             )
 
     def append(self, entry):
@@ -181,11 +186,21 @@ class TrillianLog():
         )
         response.raise_for_status()
 
-    def _get(self, url_path):
+    def get_leaves_by_range(self, start_index, count):
+        return self._get(
+            '/leaves:by_range',
+            {
+                'start_index': start_index,
+                'count': count
+            }
+        ).json()['leaves']
+
+    def _get(self, url_path, params=None):
+        params = params or {}
         full_url = '{}{}'.format(self.__url, url_path)
 
         try:
-            response = requests.get(full_url)
+            response = requests.get(full_url, params=params)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logging.exception(e)
