@@ -176,7 +176,7 @@ class TrillianLog():
         LOG.info('Appending to log: {}'.format(entry))
 
         response = requests.post(
-            '{}/insert/'.format(self.__url),
+            '{}/leaves'.format(self.__url),
             json=entry
         )
         response.raise_for_status()
