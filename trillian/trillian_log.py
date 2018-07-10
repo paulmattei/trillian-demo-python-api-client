@@ -7,8 +7,6 @@ import struct
 
 from collections import namedtuple
 
-import utcdatetime
-
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
@@ -140,9 +138,6 @@ class LogEntry():
 
 
 class TrillianLog():
-    """
-    Stub!
-    """
 
     def __init__(self, base_url, public_key):
         if not base_url:
