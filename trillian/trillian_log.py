@@ -13,9 +13,16 @@ from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 
+from .merkle import TreeHasher
+from . import error
+
 LOG = logging.getLogger(__name__)
 
 LogRoot = namedtuple('LogRoot', 'tree_size,root_hash,timestamp_nanos')
+
+
+def to_b64(binary):
+    return base64.b64encode(binary).decode('ascii')
 
 
 class LogRootDecoder():
@@ -87,7 +94,7 @@ class LogRootDecoder():
         length, = struct.unpack(">B", length_prefix)
         assert length == 32, 'Expected 32-byte hash, got {}'.format(length)
 
-        return LogRootDecoder.to_b64(
+        return to_b64(
             LogRootDecoder._read_n_bytes(s, length)
         )
 
@@ -118,10 +125,6 @@ class LogRootDecoder():
         result = s.read(n)
         assert len(result) == n
         return result
-
-    @staticmethod
-    def to_b64(binary):
-        return base64.b64encode(binary).decode('ascii')
 
 
 class LogEntry():
@@ -194,6 +197,31 @@ class TrillianLog():
                 'count': count
             }
         ).json()['leaves']
+
+    def full_audit(self, log_root):
+        """
+        Download all leaves, build a Merkle Tree and calculate the root hash.
+        """
+
+        tree_size = log_root.tree_size
+
+        def to_binary(leaf):
+            return base64.b64decode(leaf['leaf_value'])
+
+        leaves = list(map(to_binary, self.get_leaves_by_range(0, tree_size)))
+
+        LOG.debug('Generating Merkle tree root hash for {} leaves'.format(
+            len(leaves)))
+
+        calculated_root_hash = to_b64(TreeHasher().hash_full_tree(leaves))
+
+        if log_root.root_hash == calculated_root_hash:
+            return True
+        else:
+            raise error.ConsistencyError(
+                'Signed log root hash `{}` != calculated hash `{}`'.format(
+                    log_root.root_hash, calculated_root_hash
+                ))
 
     def _get(self, url_path, params=None):
         params = params or {}
