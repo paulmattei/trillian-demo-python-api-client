@@ -113,12 +113,15 @@ class TrillianLog():
         Download all leaves, build a Merkle Tree and calculate the root hash.
         """
 
+        def to_binary_leaf_data(log_entry):
+            return log_entry.leaf_value
+
         tree_size = log_root.tree_size
 
-        def to_binary(leaf):
-            return base64.b64decode(leaf['leaf_value'])
-
-        leaves = list(map(to_binary, self.get_leaves_by_range(0, tree_size)))
+        leaves = list(map(
+            to_binary_leaf_data,
+            self.get_leaves_by_range(0, tree_size)
+        ))
 
         LOG.debug('Generating Merkle tree root hash for {} leaves'.format(
             len(leaves)))
