@@ -1,194 +1,62 @@
 import base64
-import json
-import io
 import logging
+import os
 import requests
-import struct
-
-from collections import namedtuple, OrderedDict
 
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 
+from .dict_to_base64_normaliser import DictToBase64Normaliser
+from .helpers import to_b64
+from .log_root_decoder import LogRootDecoder
+from .log_entry import LogEntry
 from .merkle import TreeHasher
 from . import error
 
 LOG = logging.getLogger(__name__)
 
-LogRoot = namedtuple('LogRoot', 'tree_size,root_hash,timestamp_nanos')
-
-
-def to_b64(binary):
-    return base64.b64encode(binary).decode('ascii')
-
-
-class LogRootDecoder():
-    """
-    log_root holds the TLS-serialization of the following structure (described
-    in RFC5246 notation): Clients should validate log_root_signature with
-    VerifySignedLogRoot before deserializing log_root.
-
-    enum { v1(1), (65535)} Version;
-    struct {
-      uint64 tree_size;
-      opaque root_hash<0..128>;
-      uint64 timestamp_nanos;
-      uint64 revision;
-      opaque metadata<0..65535>;
-    } LogRootV1;
-    struct {
-      Version version;
-      select(version) {
-        case v1: LogRootV1;
-      }
-    } LogRoot;
-    """
-    def __init__(self, log_root_bytes):
-        self._data = log_root_bytes
-
-    def __str__(self):
-
-        return str(self.log_root)
-
-    def __repr__(self):
-        return self.__str__()
-
-    def decode(self):
-        s = io.BytesIO(self._data)
-
-        self._decode_version(s),
-
-        tree_size = self._decode_tree_size(s)
-        root_hash = self._decode_root_hash(s)
-        timestamp_nanos = self._decode_timestamp_nanos(s)
-
-        self._decode_revision(s)
-        self._decode_metadata(s)
-
-        self.log_root = LogRoot(
-            tree_size=tree_size,
-            root_hash=root_hash,
-            timestamp_nanos=timestamp_nanos
-        )
-
-        leftover = len(s.read())
-        assert leftover == 0, '{} bytes leftover'.format(leftover)
-        return self.log_root
-
-    @staticmethod
-    def _decode_version(s):
-        result, = struct.unpack('>H', LogRootDecoder._read_n_bytes(s, 2))
-        assert result == 1
-        return result
-
-    @staticmethod
-    def _decode_tree_size(s):
-        return LogRootDecoder._decode_uint64(s)
-
-    @staticmethod
-    def _decode_root_hash(s):
-        length_prefix = LogRootDecoder._read_n_bytes(s, 1)
-        length, = struct.unpack(">B", length_prefix)
-        assert length == 32, 'Expected 32-byte hash, got {}'.format(length)
-
-        return to_b64(
-            LogRootDecoder._read_n_bytes(s, length)
-        )
-
-    @staticmethod
-    def _decode_timestamp_nanos(s):
-        return LogRootDecoder._decode_uint64(s)
-
-    @staticmethod
-    def _decode_revision(s):
-        return LogRootDecoder._decode_uint64(s)
-
-    @staticmethod
-    def _decode_metadata(s):
-        length_prefix = LogRootDecoder._read_n_bytes(s, 2)
-        length, = struct.unpack(">H", length_prefix)
-
-        return LogRootDecoder._read_n_bytes(s, length)
-
-    @staticmethod
-    def _decode_uint64(s):
-        # https://docs.python.org/3/library/struct.html#format-characters
-        # Q = uint64
-        result, = struct.unpack('>Q', LogRootDecoder._read_n_bytes(s, 8))
-        return result
-
-    @staticmethod
-    def _read_n_bytes(s, n):
-        result = s.read(n)
-        assert len(result) == n
-        return result
-
-
-class DictToBase64Normaliser():
-    def __init__(self, dictionary):
-        self.__dictionary = dictionary
-
-    def normalise(self):
-        """
-        Normalise a python dictionary, encode it as JSON return it base64
-        encoded.
-        """
-        self._validate_is_dictionary()
-        self._validate_not_empty()
-        self._stringify_numbers()
-        self._order_by_keys()
-
-        return to_b64(self._encode_to_json())
-
-    def _validate_is_dictionary(self):
-        pass
-
-    def _validate_not_empty(self):
-        pass
-
-    def _stringify_numbers(self):
-        self.__dictionary = {k: str(v) for k, v in self.__dictionary.items()}
-
-    def _order_by_keys(self):
-        self.__dictionary = OrderedDict(
-            sorted(self.__dictionary.items(), key=lambda x: x[0], reverse=True)
-        )
-
-    def _encode_to_json(self):
-        return json.dumps(self.__dictionary, indent=0).encode('utf-8')
-
-
-class LogEntry():
-    def __init__(self, raw_data):
-        if not isinstance(raw_data, bytes):
-            raise ValueError('raw_data: expected bytes, got {}'.format(
-                type(raw_data)
-            ))
-        self.__raw_data = raw_data
-
-    def json(self):
-        return json.loads(self.__raw_data.decode('utf-8'))
-
 
 class TrillianLog():
 
-    def __init__(self, base_url, public_key):
-        if not base_url:
+    def __init__(self, log_url, public_key):
+        if not log_url:
             raise ValueError(
-                'Must provide a `base_url` of the form '
+                'Must provide a `log_url` of the form '
                 'http://<host>:<port>/v1beta1/logs/<log_id>'
             )
 
-        self.__url = base_url
+        self.__url = log_url
         self.__public_key_algo = None
         self.__hash_algo = None
         self.__public_key_der = None
 
         self._parse_public_key(public_key)
 
+    @classmethod
+    def load_from_environment(cls):
+        url = os.environ.get('TRILLIAN_LOG_URL', None)
+        if not url:
+            raise RuntimeError(
+                'No TRILLIAN_LOG_URL found in `settings.sh`. It should look like '
+                'http://<host>:<post>/v1beta1/logs/<log_id>. On the demo log '
+                'server, see http://192.168.99.4:5000/demoapi/logs/ to '
+                'and look for the `log_url` field'
+            )
+
+        public_key = os.environ.get('TRILLIAN_LOG_PUBLIC_KEY', None)
+
+        if not public_key:
+            raise RuntimeError(
+                'No TRILLIAN_LOG_PUBLIC_KEY found in `settings.sh`. On the demo '
+                'log server, see http://192.168.99.4:5000/demoapi/logs/ to '
+                'and look for the `public_key` field'
+            )
+
+        return cls(url, public_key)
+
     def get_log_root(self):
-        return self.validate_signed_log_root(
+        return self._validate_signed_log_root(
             self._get('/roots:latest').json()
         )
 
@@ -203,9 +71,7 @@ class TrillianLog():
         else:
             latest_entry = self.get_leaves_by_range(tree_size-1, 1)[0]
 
-            return LogEntry(
-                raw_data=base64.b64decode(latest_entry['leaf_value'])
-            )
+            return latest_entry
 
     def append(self, dictionary):
         """
@@ -228,13 +94,19 @@ class TrillianLog():
         response.raise_for_status()
 
     def get_leaves_by_range(self, start_index, count):
-        return self._get(
-            '/leaves:by_range',
-            {
-                'start_index': start_index,
-                'count': count
-            }
-        ).json()['leaves']
+        def to_log_entry(leaf):
+            return LogEntry(**leaf)
+
+        return list(map(
+            to_log_entry,
+            self._get(
+                '/leaves:by_range',
+                {
+                    'start_index': start_index,
+                    'count': count
+                }
+            ).json()['leaves']
+        ))
 
     def full_audit(self, log_root):
         """
@@ -281,9 +153,9 @@ class TrillianLog():
             self.__public_key_der
         ) = colon_separated_key.split(':')
 
-    def validate_signed_log_root(self, signed_log_root):
+    def _validate_signed_log_root(self, signed_log_root):
         try:
-            self.validate_signature(
+            self._validate_signature(
                 base64.b64decode(signed_log_root['log_root']),
                 base64.b64decode(signed_log_root['log_root_signature']),
                 self.__public_key_der
@@ -298,7 +170,8 @@ class TrillianLog():
             LOG.debug('Signature is valid')
             return d
 
-    def validate_signature(self, log_root, log_root_signature, public_key):
+    @staticmethod
+    def _validate_signature(log_root, log_root_signature, public_key):
         """
         log_root holds the TLS-serialization of the following structure
         (described # in RFC5246 notation): Clients should validate
