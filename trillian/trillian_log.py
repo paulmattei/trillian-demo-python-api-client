@@ -176,7 +176,7 @@ class TrillianLog():
     def append(self, entry):
         assert isinstance(entry, dict), \
             'expecting a dict, got: `{}`'.format(entry)
-        LOG.info('Appending to log: {}'.format(entry))
+        LOG.debug('Appending to log: {}'.format(entry))
 
         response = requests.post(
             '{}/leaves'.format(self.__url),
@@ -252,7 +252,7 @@ class TrillianLog():
             d = LogRootDecoder(
                 base64.b64decode(signed_log_root['log_root'])
             ).decode()
-            LOG.info('Signature is valid')
+            LOG.debug('Signature is valid')
             return d
 
     def validate_signature(self, log_root, log_root_signature, public_key):
