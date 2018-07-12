@@ -5,7 +5,7 @@ import logging
 import requests
 import struct
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
@@ -125,6 +125,40 @@ class LogRootDecoder():
         return result
 
 
+class DictToBase64Normaliser():
+    def __init__(self, dictionary):
+        self.__dictionary = dictionary
+
+    def normalise(self):
+        """
+        Normalise a python dictionary, encode it as JSON return it base64
+        encoded.
+        """
+        self._validate_is_dictionary()
+        self._validate_not_empty()
+        self._stringify_numbers()
+        self._order_by_keys()
+
+        return to_b64(self._encode_to_json())
+
+    def _validate_is_dictionary(self):
+        pass
+
+    def _validate_not_empty(self):
+        pass
+
+    def _stringify_numbers(self):
+        self.__dictionary = {k: str(v) for k, v in self.__dictionary.items()}
+
+    def _order_by_keys(self):
+        self.__dictionary = OrderedDict(
+            sorted(self.__dictionary.items(), key=lambda x: x[0], reverse=True)
+        )
+
+    def _encode_to_json(self):
+        return json.dumps(self.__dictionary, indent=0).encode('utf-8')
+
+
 class LogEntry():
     def __init__(self, raw_data):
         if not isinstance(raw_data, bytes):
@@ -173,14 +207,23 @@ class TrillianLog():
                 raw_data=base64.b64decode(latest_entry['leaf_value'])
             )
 
-    def append(self, entry):
-        assert isinstance(entry, dict), \
-            'expecting a dict, got: `{}`'.format(entry)
-        LOG.debug('Appending to log: {}'.format(entry))
+    def append(self, dictionary):
+        """
+        Insert a Python dictionary as a log entry.
+
+        This method normalizes the dictionary to binary, encodes it as base64
+        and pushes it to the API.
+        """
+        assert isinstance(dictionary, dict), \
+            'expecting dict, got: {}: `{}`'.format(
+                type(dictionary), dictionary)
+        LOG.debug('Appending to log: {}'.format(dictionary))
+
+        normaliser = DictToBase64Normaliser(dictionary)
 
         response = requests.post(
             '{}/leaves'.format(self.__url),
-            json=entry
+            json={'base64_data': normaliser.normalise()}
         )
         response.raise_for_status()
 
