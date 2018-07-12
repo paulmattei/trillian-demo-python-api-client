@@ -50,6 +50,16 @@ python
 LogRoot(tree_size=5, root_hash='F/ZKT9N6eoDQi0+paj3eToI/U9xu1ZriSMy/vhjkm30=', timestamp_nanos=1531403868624765390)
 ```
 
+## `.append(dictionary)`
+
+Insert a Python dictionary into the Trillian log.
+
+
+```
+python
+>>> log.append({'foo': 'bar'})
+```
+
 ## `.latest()`
 
 Find the latest leaf (log entry) in the Trillian log and return it as a `LogEntry` object.
@@ -59,10 +69,6 @@ python
 >>> log.latest()
 LogEntry(idx=14, data=b'{\n"foo": "bar"\n}')
 ```
-
-## `.append(dictionary)`
-
-Insert a Python dictionary into the Trillian log.
 
 ## `.full_audit(log_root)`
 
