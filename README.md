@@ -6,7 +6,7 @@ This library helps you interact with a Trillian log. It provides a `TrillianLog`
 
 You'll need to clone this repository and install it manually in your Python app. For example:
 
-```
+```sh
 . venv/bin/activate
 pip install -e ~/trillian-demo-python-api-client/
 ```
@@ -15,8 +15,7 @@ pip install -e ~/trillian-demo-python-api-client/
 
 ### Example use
 
-```
-python
+```python
 >>> log = TrillianLog.load_from_environment()
 >>> log.append({'foo': 'bar'})
 >>> log.latest()
@@ -42,8 +41,7 @@ Instantiate a `TrillianLog` class with the `log_url` of a log, for example:
 
 Gets the signed log root, validates the signature against the public key
 
-```
-python
+```python
 >>> log.get_log_root()
 LogRoot(tree_size=5, root_hash='F/ZKT9N6eoDQi0+paj3eToI/U9xu1ZriSMy/vhjkm30=', timestamp_nanos=1531403868624765390)
 ```
@@ -52,8 +50,7 @@ LogRoot(tree_size=5, root_hash='F/ZKT9N6eoDQi0+paj3eToI/U9xu1ZriSMy/vhjkm30=', t
 
 Insert a Python dictionary into the Trillian log.
 
-```
-python
+```python
 >>> log.append({'foo': 'bar'})
 ```
 
@@ -61,8 +58,7 @@ python
 
 Find the latest leaf (log entry) in the Trillian log and return it as a `LogEntry` object.
 
-```
-python
+```python
 >>> log.latest()
 LogEntry(idx=14, data=b'{\n"foo": "bar"\n}')
 ```
@@ -71,8 +67,7 @@ LogEntry(idx=14, data=b'{\n"foo": "bar"\n}')
 
 Download and hash all the data in the log, recreating a Merkle tree and comparing its root hash against the given `log_root`.
 
-```
-python
+```python
 >>> log.full_audit(log.get_log_root())
 True
 ```
@@ -81,8 +76,7 @@ True
 
 Download the given leaves from the log as `LogEntry` objects.
 
-```
-python
+```python
 >>> log.get_leaves_by_range(0, 2)
 [LogEntry(idx=0 data=b'{\n"datetime": "2018-07-12T00:00:00Z",\n"Eastbridge Road - Pedestrians": "23",\n"Eastbridge Road - Bicycles": "15",\n"Eastbridge Road - Cars": "45"\n}'),
  LogEntry(idx=1 data=b'{\n"datetime": "2018-07-12T01:00:00Z",\n"Eastbridge Road - Pedestrians": "34",\n"Eastbridge Road - Bicycles": "4",\n"Eastbridge Road - Cars": "34"\n}')]
