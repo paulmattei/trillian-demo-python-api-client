@@ -35,7 +35,7 @@ instantiates a `TrillianLog` class.
 
 Instantiate a `TrillianLog` class with the `log_url` of a log, for example:
 
-- `log_url`: `https://trillian.example.com/v1beta1/logs/472384632756347'
+- `log_url`: `https://trillian.example.com/v1beta1/logs/472384632756347`
 - `public_key`: `ECDSA:SHA256:MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAER4Z5Ac9QEtvFqz7c808DJP1IzqxN88r8aUNsC2pluKHkw5EK+vQ1DKaSG20zufLlIeDvWNEYZ6INgqm7Fz35Nw==`
 
 ### `.get_log_root()`
